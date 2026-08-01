@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,24 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PLANT_PROFILE_SCHEMA, SYSTEM_PROMPT, buildIdentifyContent } from './lib/profile.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Read KEY=value lines out of a .env file, so you can paste your API key into a
+ * file once instead of exporting it in every new terminal. Anything already set
+ * in the real environment wins.
+ */
+function loadEnvFile(file) {
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+    const key = match[1];
+    const value = match[2].trim().replace(/^(['"])(.*)\1$/, '$2');
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadEnvFile(path.join(here, '.env'));
 const PORT = process.env.PORT || 3000;
 const MODEL = process.env.GARDEN_MODEL || 'claude-opus-5';
 

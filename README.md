@@ -35,9 +35,12 @@ identify. Back it up from Settings before you clear your browser or switch phone
 
 ```bash
 npm install
-export ANTHROPIC_API_KEY=sk-ant-...     # get one at https://platform.claude.com
+cp .env.example .env       # then paste your key into .env
 npm start
 ```
+
+Get a key at <https://platform.claude.com> → **API keys**. An `ANTHROPIC_API_KEY` already set in
+your environment takes precedence over the `.env` file.
 
 Then open <http://localhost:3000>.
 
