@@ -2,15 +2,15 @@
   "name": "Garden Library",
   "short_name": "Garden",
   "description": "Photograph the plants in your garden and keep a living library of what they are and how to look after them.",
-  "start_url": "/#/library",
-  "scope": "/",
+  "start_url": "./#/library",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f7f4ec",
   "theme_color": "#2f5d3f",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

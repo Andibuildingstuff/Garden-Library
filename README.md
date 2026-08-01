@@ -31,7 +31,29 @@ and ask follow-up questions about any plant ("the lower leaves are going yellow 
 **Your data** stays in the browser. Nothing is uploaded except the photo you explicitly ask to
 identify. Back it up from Settings before you clear your browser or switch phone.
 
+## Two ways to get the care notes
+
+**Via the Claude app — free with a Claude subscription, and no server needed.** Photograph the
+plant, tap **Copy the prompt**, paste it into the Claude app with the photo attached, then paste the
+reply back. The app files it as a full profile. The prompt is generated from the same schema the API
+path uses, so the two can't drift apart.
+
+**Automatically — needs an Anthropic API key, which is billed separately from any subscription.**
+Tap **Identify and add** and it does the round trip for you, for a few pence a plant.
+
 ## Running it
+
+Everything except automatic identification is static, so `public/` can be served from anywhere:
+
+```bash
+npx serve public          # or any static server
+```
+
+Pushing to `main` publishes `public/` to GitHub Pages via `.github/workflows/pages.yml` — free
+hosting with HTTPS, which is what you want on a phone: the clipboard, the share sheet and offline
+caching all need a secure context.
+
+For automatic identification you need the Node server, which keeps the API key off the phone:
 
 ```bash
 npm install
@@ -39,28 +61,23 @@ cp .env.example .env       # then paste your key into .env
 npm start
 ```
 
-Get a key at <https://platform.claude.com> → **API keys**. An `ANTHROPIC_API_KEY` already set in
-your environment takes precedence over the `.env` file.
+Get a key at <https://platform.claude.com> → **API keys**. An `ANTHROPIC_API_KEY` already set in your
+environment takes precedence over the `.env` file. Without a key the server still runs — it just
+serves the app with automatic identification switched off.
 
-Then open <http://localhost:3000>.
-
-On your phone, open the same address on your home network and use **Add to Home Screen** — it runs
-full screen, works offline, and opens the camera directly.
-
-Without an API key the server still starts; photo identification is switched off and the built-in
-plant library is used instead.
+Then open <http://localhost:3000>, or the LAN address the server prints if you're on a phone.
 
 | Variable | Purpose |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | Required for photo identification and follow-up questions. |
+| `ANTHROPIC_API_KEY` | Enables automatic identification and in-app follow-up questions. |
 | `PORT` | Defaults to `3000`. |
 | `GARDEN_MODEL` | Defaults to `claude-opus-5`. |
 
 ## How it's put together
 
 ```
-server.js              Express: serves the app, proxies two API routes
-lib/profile.js         The care-profile JSON schema and the prompts
+server.js              Express: serves the app, proxies two API routes (optional)
+public/profile.js      The care-profile schema, the prompts, and the paste parser
 public/app.js          The whole UI — vanilla ES modules, no build step
 public/care.js         Months → jobs: hemisphere shifting, watering clock, calendar
 public/db.js           IndexedDB: plants, photos, settings, backup/restore

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 
-import { PLANT_PROFILE_SCHEMA, SYSTEM_PROMPT, buildIdentifyContent } from './lib/profile.js';
+import { PLANT_PROFILE_SCHEMA, SYSTEM_PROMPT, buildIdentifyContent } from './public/profile.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 

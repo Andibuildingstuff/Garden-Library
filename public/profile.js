@@ -1,6 +1,10 @@
 // The shape of a plant care profile, plus the prompts used to produce one.
-// The schema is enforced by the Messages API via output_config.format, so the
-// server never has to defensively parse half-formed JSON.
+//
+// Shared by both routes into the app, which is why it lives in public/:
+//   - the server enforces this schema through the Messages API, so it never has
+//     to defensively parse half-formed JSON;
+//   - the browser renders the same schema as a readable spec inside the prompt
+//     you paste into the Claude app, so the two can't drift apart.
 
 const MONTHS = { type: 'integer', enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] };
 
@@ -294,6 +298,110 @@ Writing the care advice:
 - Watering intervals are a starting point for an established plant in open ground or a well-sized pot. Say what to look at instead of the calendar in signsOfThirst and signsOfOverwatering.
 - Cover the whole profile even where the answer is "nothing to do" — say that rather than leaving a field vague.
 - If the plant is toxic to pets or children, be clear and unfussy about it.`;
+
+/* -------------------------------------------------------------------------
+ * Rendering the schema as a spec you can paste into a chat.
+ * ---------------------------------------------------------------------- */
+
+function describeLeaf(field) {
+  if (Array.isArray(field.enum)) {
+    const integers = field.enum.every((value) => Number.isInteger(value));
+    if (integers && field.enum.length > 6) {
+      return `integer ${Math.min(...field.enum)}–${Math.max(...field.enum)}`;
+    }
+    return field.enum.map((value) => JSON.stringify(value)).join(' | ');
+  }
+  return field.type;
+}
+
+const comment = (text) => (text ? `   // ${text}` : '');
+
+/** Turns the JSON schema into an indented, readable field list. */
+export function schemaToSpec(schema, depth = 0) {
+  const pad = '  '.repeat(depth + 1);
+  const lines = [];
+
+  for (const [key, field] of Object.entries(schema.properties)) {
+    if (field.type === 'object') {
+      lines.push(`${pad}${key}: {${comment(field.description)}`);
+      lines.push(schemaToSpec(field, depth + 1));
+      lines.push(`${pad}}`);
+    } else if (field.type === 'array' && field.items?.type === 'object') {
+      lines.push(`${pad}${key}: [${comment(field.description)}`);
+      lines.push(`${pad}  {`);
+      lines.push(schemaToSpec(field.items, depth + 2));
+      lines.push(`${pad}  }`);
+      lines.push(`${pad}]`);
+    } else if (field.type === 'array') {
+      lines.push(`${pad}${key}: [ ${describeLeaf(field.items)} ]${comment(field.description)}`);
+    } else {
+      lines.push(`${pad}${key}: ${describeLeaf(field)}${comment(field.description)}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * The whole prompt to paste into the Claude app alongside the photo. Everything
+ * the API route sends — instructions, your context, the schema — in one block.
+ */
+export function buildPasteablePrompt({ hasPhotos = true, notes = '', context = {} } = {}) {
+  const task = hasPhotos
+    ? 'Identify the plant in the attached photo, then write a full care profile for it.'
+    : 'Write a full care profile for the plant described below.';
+
+  const lines = [SYSTEM_PROMPT, '', task];
+
+  if (context.location) lines.push(`My location: ${context.location}.`);
+  if (context.hemisphere === 'south') {
+    lines.push('I garden in the southern hemisphere, but give months for the northern hemisphere anyway — my app converts them.');
+  }
+  if (notes) lines.push(`What I already know: ${notes}`);
+
+  lines.push(
+    '',
+    'Reply with a single JSON object and nothing else — no preamble, no explanation, no code fence.',
+    'Fill in every field. Use an empty string where something genuinely does not apply.',
+    '',
+    '{',
+    schemaToSpec(PLANT_PROFILE_SCHEMA),
+    '}',
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * Pulls the profile out of whatever gets pasted back — code fences, a stray
+ * "Here you go:", trailing chatter. Throws something readable if it can't.
+ */
+export function parsePastedProfile(text) {
+  const raw = String(text ?? '').trim();
+  if (!raw) throw new Error('Nothing pasted yet.');
+
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end <= start) {
+    throw new Error("That doesn't look like the JSON reply. Copy Claude's whole answer, starting at the { and ending at the }.");
+  }
+
+  let profile;
+  try {
+    profile = JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    throw new Error('That JSON is incomplete or damaged — most often only part of the answer was copied. Try copying it again.');
+  }
+
+  if (!profile || typeof profile !== 'object' || Array.isArray(profile)) {
+    throw new Error('That parsed, but it is not a plant profile.');
+  }
+  if (!profile.commonName) {
+    throw new Error('That JSON has no commonName, so it is not a plant profile. Check you copied the right reply.');
+  }
+
+  return profile;
+}
 
 export function buildIdentifyContent({ images, notes, context }) {
   const content = images.map((image) => ({

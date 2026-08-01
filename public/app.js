@@ -10,6 +10,7 @@ import {
   yearAtAGlance,
 } from './care.js';
 import { BUILT_IN_PLANTS, findBuiltIn } from './plantData.js';
+import { buildPasteablePrompt, parsePastedProfile } from './profile.js';
 
 const view = document.getElementById('view');
 const toastEl = document.getElementById('toast');
@@ -19,9 +20,11 @@ const state = {
   plants: [],
   settings: { hemisphere: 'north', location: '' },
   identificationAvailable: false,
-  draft: { images: [], notes: '', busy: false, error: '' },
+  draft: { images: [], notes: '', busy: false, error: '', paste: '', pasteError: '', showPromptText: false },
   search: '',
 };
+
+const emptyDraft = () => ({ images: [], notes: '', busy: false, error: '', paste: '', pasteError: '', showPromptText: false });
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -37,6 +40,54 @@ function paras(text) {
     .filter(Boolean)
     .map((line) => `<p>${esc(line)}</p>`)
     .join('');
+}
+
+/**
+ * Copy to the clipboard, falling back to a hidden textarea. The Clipboard API
+ * needs a secure context, which you don't get over plain http on a home network.
+ */
+async function copyText(text) {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fall through to the old way
+    }
+  }
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+  document.body.appendChild(area);
+  area.select();
+  area.setSelectionRange(0, text.length);
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {
+    copied = false;
+  }
+  area.remove();
+  return copied;
+}
+
+/** Hand the photos to the iOS share sheet so they can go straight into Claude. */
+async function sharePhotos(images) {
+  if (!navigator.canShare || !navigator.share) return false;
+  const files = await Promise.all(
+    images.map(async (image, index) => {
+      const blob = await (await fetch(image.dataUrl)).blob();
+      return new File([blob], `plant-${index + 1}.jpg`, { type: 'image/jpeg' });
+    }),
+  );
+  if (!navigator.canShare({ files })) return false;
+  try {
+    await navigator.share({ files });
+    return true;
+  } catch {
+    return false; // the user backed out of the share sheet
+  }
 }
 
 function toast(message, kind = '') {
@@ -296,22 +347,15 @@ async function renderAdd() {
 
   view.innerHTML = `
     <h1>Add a plant</h1>
-    ${
-      state.identificationAvailable
-        ? ''
-        : `<div class="callout"><strong>Photo identification is off</strong>The server has no Anthropic API key, so I can't identify photos. You can still add plants from the built-in library below.</div>`
-    }
 
-    ${
-      state.identificationAvailable
-        ? `<div class="card">
-      <h2>📷 From a photo</h2>
+    <div class="card">
+      <h2>📷 The photo</h2>
       <p class="muted small">One clear photo of the leaves is usually enough. A flower, the bark, or a wider shot of the whole plant helps a lot.</p>
       <label for="photo-input" class="dropzone" style="display:block; cursor:pointer">
         <span class="big" aria-hidden="true">📷</span>
         Take a photo or choose from your library
       </label>
-      <input type="file" id="photo-input" accept="image/*" capture="environment" multiple hidden />
+      <input type="file" id="photo-input" accept="image/*" multiple hidden />
       <div class="previews" id="previews">
         ${draft.images
           .map(
@@ -326,19 +370,51 @@ async function renderAdd() {
 
       <label for="notes">Anything you already know (optional)</label>
       <textarea id="notes" placeholder="Where it's growing, how big it is, when it flowers, what the leaves smell like…">${esc(draft.notes)}</textarea>
+    </div>
 
+    ${
+      state.identificationAvailable
+        ? `<div class="card">
+      <h2>⚡ Identify automatically</h2>
+      <p class="muted small">Sends the photo straight to Claude and fills everything in. Costs a few pence of API credit.</p>
       ${draft.error ? `<div class="callout danger"><strong>That didn't work</strong>${esc(draft.error)}</div>` : ''}
-
-      <div style="margin-top:12px">
-        ${
-          draft.busy
-            ? `<div class="working"><span class="spinner"></span> Looking closely at your photo and writing the care notes… this takes a few moments.</div>`
-            : `<button class="primary button-block" id="identify" ${draft.images.length === 0 ? 'disabled' : ''}>Identify and add</button>`
-        }
-      </div>
+      ${
+        draft.busy
+          ? `<div class="working"><span class="spinner"></span> Looking closely at your photo and writing the care notes… this takes a few moments.</div>`
+          : `<button class="primary button-block" id="identify" ${draft.images.length === 0 ? 'disabled' : ''}>Identify and add</button>`
+      }
     </div>`
         : ''
     }
+
+    <div class="card">
+      <h2>💬 Use the Claude app</h2>
+      <p class="muted small">Free with your Claude subscription. Takes about half a minute.</p>
+      <ol class="steps">
+        <li>
+          <strong>Copy the prompt.</strong>
+          <div class="button-row" style="margin-top:6px">
+            <button id="copy-prompt">📋 Copy the prompt</button>
+            ${draft.images.length ? '<button id="share-photo">📤 Send photo to Claude</button>' : ''}
+          </div>
+          ${
+            draft.showPromptText
+              ? `<p class="small muted" style="margin-top:8px">Your browser wouldn't let me use the clipboard — select all of this and copy it by hand:</p>
+                 <textarea id="prompt-text" rows="6" readonly>${esc(buildPromptForDraft())}</textarea>`
+              : ''
+          }
+        </li>
+        <li><strong>Open the Claude app</strong>, paste the prompt, and attach the photo${draft.images.length > 1 ? 's' : ''}.</li>
+        <li><strong>Copy the whole reply</strong> and paste it back here.</li>
+      </ol>
+
+      <label for="paste">Claude's reply</label>
+      <textarea id="paste" placeholder="Paste the JSON here…">${esc(draft.paste)}</textarea>
+      ${draft.pasteError ? `<div class="callout danger"><strong>Couldn't read that</strong>${esc(draft.pasteError)}</div>` : ''}
+      <div class="button-row" style="margin-top:10px">
+        <button class="primary button-block" id="save-pasted" ${draft.paste.trim() ? '' : 'disabled'}>Add to library</button>
+      </div>
+    </div>
 
     <div class="card">
       <h2>📖 From the built-in library</h2>
@@ -377,6 +453,31 @@ async function renderAdd() {
   const identify = document.getElementById('identify');
   if (identify) identify.addEventListener('click', identifyDraft);
 
+  document.getElementById('copy-prompt')?.addEventListener('click', async () => {
+    const copied = await copyText(buildPromptForDraft());
+    if (copied) {
+      toast('Prompt copied. Now paste it into the Claude app.');
+    } else {
+      draft.showPromptText = true;
+      renderAdd();
+    }
+  });
+
+  document.getElementById('share-photo')?.addEventListener('click', async () => {
+    const shared = await sharePhotos(draft.images);
+    if (!shared) {
+      toast('Sharing is not available here — press and hold the photo above to save it, then attach it in Claude.', 'error');
+    }
+  });
+
+  document.getElementById('paste')?.addEventListener('input', (event) => {
+    draft.paste = event.target.value;
+    const saveButton = document.getElementById('save-pasted');
+    if (saveButton) saveButton.disabled = draft.paste.trim() === '';
+  });
+
+  document.getElementById('save-pasted')?.addEventListener('click', savePastedDraft);
+
   const builtinSearch = document.getElementById('builtin-search');
   const results = document.getElementById('builtin-results');
   const drawBuiltIn = () => {
@@ -402,6 +503,45 @@ async function renderAdd() {
   drawBuiltIn();
 }
 
+function buildPromptForDraft() {
+  return buildPasteablePrompt({
+    hasPhotos: state.draft.images.length > 0,
+    notes: state.draft.notes,
+    context: { hemisphere: state.settings.hemisphere, location: state.settings.location },
+  });
+}
+
+async function savePastedDraft() {
+  const draft = state.draft;
+  draft.pasteError = '';
+
+  let profile;
+  try {
+    profile = parsePastedProfile(draft.paste);
+  } catch (error) {
+    draft.pasteError = error.message;
+    renderAdd();
+    return;
+  }
+
+  if (profile.isPlant === false) {
+    draft.pasteError = `Claude couldn't see a plant in that photo. ${profile.identificationNotes ?? ''}`.trim();
+    renderAdd();
+    return;
+  }
+
+  const id = await savePlant({
+    profile,
+    photos: draft.images.map((image) => image.dataUrl),
+    source: 'claude-app',
+    notes: draft.notes,
+  });
+
+  state.draft = emptyDraft();
+  toast(`${profile.commonName} added to your library.`);
+  location.hash = `#/plant/${id}`;
+}
+
 async function fileToImage(file) {
   // Downscale before upload: the model doesn't need 12 megapixels, and this keeps
   // the request (and the copy we store in IndexedDB) a sensible size.
@@ -424,7 +564,7 @@ async function identifyDraft() {
   renderAdd();
 
   try {
-    const response = await fetch('/api/identify', {
+    const response = await fetch('api/identify', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -451,7 +591,7 @@ async function identifyDraft() {
       notes: draft.notes,
     });
 
-    state.draft = { images: [], notes: '', busy: false, error: '' };
+    state.draft = emptyDraft();
     toast(`${profile.commonName} added to your library.`);
     location.hash = `#/plant/${id}`;
   } catch (error) {
@@ -746,7 +886,12 @@ async function renderPlant(id) {
         factList([
           ['Confidence', profile.confidence],
           ['Added', formatDate(plant.addedAt)],
-          ['Source', plant.source === 'claude' ? 'From your photo' : plant.source === 'built-in' ? 'Built-in library' : 'Added by hand'],
+          [
+            'Source',
+            { claude: 'From your photo', 'claude-app': 'From your photo, via the Claude app', 'built-in': 'Built-in library' }[
+              plant.source
+            ] ?? 'Added by hand',
+          ],
         ]),
         paras(profile.identificationNotes),
         (profile.alternatives ?? []).length
@@ -779,16 +924,16 @@ async function renderPlant(id) {
       }`,
     )}
 
-    ${
-      state.identificationAvailable
-        ? `<div class="card">
+    <div class="card">
       <h2>Ask about this plant</h2>
       <textarea id="question" placeholder="Its leaves are going yellow from the bottom — what's happening?"></textarea>
-      <div class="button-row" style="margin-top:10px"><button id="ask" class="primary">Ask</button></div>
+      <div class="button-row" style="margin-top:10px">
+        ${state.identificationAvailable ? '<button id="ask" class="primary">Ask</button>' : ''}
+        <button id="copy-question">📋 Copy for the Claude app</button>
+      </div>
+      <p class="muted small" style="margin-top:8px">“Copy for the Claude app” puts the question and this plant's care notes on your clipboard, so you can paste them into Claude and read the answer there — free with your subscription.</p>
       <div id="answer" class="answer"></div>
-    </div>`
-        : ''
-    }
+    </div>
 
     <div class="button-row" style="margin: 18px 0 8px">
       <a class="button" href="#/library">← Library</a>
@@ -829,6 +974,30 @@ async function renderPlant(id) {
     location.hash = '#/library';
   });
 
+  document.getElementById('copy-question')?.addEventListener('click', async () => {
+    const question = document.getElementById('question').value.trim();
+    if (!question) {
+      toast('Type your question first.', 'error');
+      return;
+    }
+    const text = [
+      "Here are my plant's care notes, from my garden app:",
+      '',
+      JSON.stringify(profile, null, 2),
+      '',
+      plant.where ? `It's growing: ${plant.where}.` : '',
+      state.settings.location ? `I garden in: ${state.settings.location}.` : '',
+      '',
+      `My question: ${question}`,
+      '',
+      'Answer in a few short paragraphs of practical advice. If it depends on something you cannot see, tell me what to check.',
+    ]
+      .filter((line) => line !== undefined)
+      .join('\n');
+    const copied = await copyText(text);
+    toast(copied ? 'Copied — paste it into the Claude app.' : "Couldn't reach the clipboard.", copied ? '' : 'error');
+  });
+
   const ask = document.getElementById('ask');
   ask?.addEventListener('click', async () => {
     const question = document.getElementById('question').value.trim();
@@ -837,7 +1006,7 @@ async function renderPlant(id) {
     ask.disabled = true;
     answer.innerHTML = '<div class="working"><span class="spinner"></span> Thinking…</div>';
     try {
-      const response = await fetch('/api/ask', {
+      const response = await fetch('api/ask', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -942,7 +1111,7 @@ async function boot() {
   state.settings = { hemisphere: 'north', location: '', ...stored };
 
   try {
-    const response = await fetch('/api/status');
+    const response = await fetch('api/status');
     if (response.ok) {
       const status = await response.json();
       state.identificationAvailable = Boolean(status.identificationAvailable);
@@ -956,7 +1125,7 @@ async function boot() {
   await route();
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 }
 

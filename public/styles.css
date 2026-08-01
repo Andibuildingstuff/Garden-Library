@@ -398,6 +398,10 @@ ul.tips li { margin-bottom: 6px; }
   font-size: 0.8rem;
 }
 
+ol.steps { margin: 0 0 4px; padding-left: 1.3em; }
+ol.steps li { margin-bottom: 12px; }
+ol.steps li::marker { color: var(--leaf); font-weight: 700; }
+
 .result-list { display: grid; gap: 8px; }
 .result-list button { justify-content: flex-start; text-align: left; width: 100%; }
 .result-list .latin { font-style: italic; color: var(--ink-soft); font-weight: 400; font-size: 0.85rem; }

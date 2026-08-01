@@ -1,18 +1,21 @@
 // Cache the app shell so the library still opens in the garden with no signal.
 // API calls are never cached — they either work or they don't.
 
-const CACHE = 'garden-library-v1';
+// Paths are relative so the app works wherever it is hosted, including in a
+// subfolder on GitHub Pages.
+const CACHE = 'garden-library-v2';
 const SHELL = [
-  '/',
-  '/index.html',
-  '/styles.css',
-  '/app.js',
-  '/db.js',
-  '/care.js',
-  '/plantData.js',
-  '/manifest.webmanifest',
-  '/icon-192.png',
-  '/icon-512.png',
+  './',
+  './index.html',
+  './styles.css',
+  './app.js',
+  './db.js',
+  './care.js',
+  './profile.js',
+  './plantData.js',
+  './manifest.webmanifest',
+  './icon-192.png',
+  './icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -34,7 +37,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/')) return;
+  if (url.pathname.includes('/api/')) return;
 
   // Network first so a redeployed app shell is picked up, cache as the fallback.
   event.respondWith(
@@ -46,6 +49,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached ?? caches.match('/index.html'))),
+      .catch(() => caches.match(request).then((cached) => cached ?? caches.match('./index.html'))),
   );
 });
