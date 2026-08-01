@@ -1,5 +1,8 @@
 # 🌿 Garden Library
 
+**Live at <https://andibuildingstuff.github.io/Garden-Library/>** — open it on a phone and use
+*Share → Add to Home Screen*.
+
 Take a photo of a plant. The app works out what it is and writes you a proper gardener's care
 profile — when and how to prune it, what to feed it and when, how often to water, what goes wrong
 with it and what to do about that. Every plant you add stays in a searchable library on your phone,
