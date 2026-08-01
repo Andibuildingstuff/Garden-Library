@@ -49,9 +49,14 @@ Everything except automatic identification is static, so `public/` can be served
 npx serve public          # or any static server
 ```
 
-Pushing to `main` publishes `public/` to GitHub Pages via `.github/workflows/pages.yml` — free
-hosting with HTTPS, which is what you want on a phone: the clipboard, the share sheet and offline
-caching all need a secure context.
+You want it on HTTPS for phone use — the clipboard, the share sheet and offline caching all need a
+secure context. Two free ways, both already configured:
+
+- **GitHub Pages** — `.github/workflows/pages.yml` publishes `public/` on every push to `main` or the
+  feature branch. Note that Pages on a **private** repo requires a paid GitHub plan; on the free plan
+  the repo has to be public.
+- **Netlify or Cloudflare Pages** — `netlify.toml` sets `public/` as the publish directory with no
+  build step. Both deploy from a private repo on their free tier.
 
 For automatic identification you need the Node server, which keeps the API key off the phone:
 

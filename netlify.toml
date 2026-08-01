@@ -1,0 +1,9 @@
+# For hosting on Netlify or Cloudflare Pages, both of which deploy free from a
+# private repo — unlike GitHub Pages, which needs the repo to be public on a
+# free plan.
+#
+# There is nothing to build: public/ is the whole app.
+
+[build]
+  publish = "public"
+  command = ""
