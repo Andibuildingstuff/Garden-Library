@@ -53,8 +53,10 @@ You want it on HTTPS for phone use — the clipboard, the share sheet and offlin
 secure context. Two free ways, both already configured:
 
 - **GitHub Pages** — `.github/workflows/pages.yml` publishes `public/` on every push to `main` or the
-  feature branch. Note that Pages on a **private** repo requires a paid GitHub plan; on the free plan
-  the repo has to be public.
+  feature branch. Pages on a **private** repo requires a paid GitHub plan; on the free plan the repo
+  has to be public, or the workflow fails at `configure-pages` with *"Create Pages site failed:
+  Resource not accessible by integration"*. If it still fails once the repo is public, set
+  **Settings → Pages → Source** to **GitHub Actions** by hand and re-run.
 - **Netlify or Cloudflare Pages** — `netlify.toml` sets `public/` as the publish directory with no
   build step. Both deploy from a private repo on their free tier.
 
