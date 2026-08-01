@@ -1,0 +1,19 @@
+{
+  "name": "garden-library",
+  "version": "1.0.0",
+  "description": "Photograph a plant, get a full gardener's care profile, and keep a living library of your garden.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "icons": "node scripts/make-icons.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0",
+    "express": "^4.21.2"
+  }
+}

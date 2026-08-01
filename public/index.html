@@ -1,0 +1,31 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="description" content="Photograph the plants in your garden and keep a living library of what they are and how to look after them." />
+<meta name="theme-color" content="#2f5d3f" />
+<title>Garden Library</title>
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon-192.png" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="stylesheet" href="/styles.css" />
+
+<header class="app-bar">
+  <a class="brand" href="#/library">
+    <span class="brand-mark" aria-hidden="true">🌿</span>
+    <span class="brand-text">Garden Library</span>
+  </a>
+  <a class="icon-button" href="#/settings" aria-label="Settings">⚙️</a>
+</header>
+
+<main id="view" aria-live="polite">
+  <div class="loading">Opening the shed…</div>
+</main>
+
+<nav class="tab-bar">
+  <a href="#/library" data-tab="library"><span aria-hidden="true">📖</span>Library</a>
+  <a href="#/todo" data-tab="todo"><span aria-hidden="true">📅</span>To do<span class="badge" id="todo-badge" hidden></span></a>
+  <a href="#/add" data-tab="add"><span aria-hidden="true">📷</span>Add plant</a>
+</nav>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script type="module" src="/app.js"></script>
