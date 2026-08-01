@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -149,8 +150,20 @@ function respondWithApiError(res, error, fallbackMessage) {
   res.status(500).json({ error: 'server_error', message: fallbackMessage });
 }
 
+/** The address to type into a phone on the same Wi-Fi. */
+function localNetworkAddress() {
+  for (const interfaces of Object.values(os.networkInterfaces())) {
+    for (const entry of interfaces ?? []) {
+      if (entry.family === 'IPv4' && !entry.internal) return entry.address;
+    }
+  }
+  return null;
+}
+
 app.listen(PORT, () => {
+  const lan = localNetworkAddress();
   console.log(`\n  🌿 Garden Library running at http://localhost:${PORT}`);
+  if (lan) console.log(`     On your phone (same Wi-Fi): http://${lan}:${PORT}`);
   console.log(
     hasCredentials
       ? `     Photo identification: on (${MODEL})`
