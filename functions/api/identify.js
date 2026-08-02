@@ -15,6 +15,8 @@ export async function onRequestPost({ request, env }) {
   const { status, body } = await identifyPlant({
     apiKey: env.ANTHROPIC_API_KEY,
     model: env.GARDEN_MODEL || DEFAULT_MODEL,
+    requiredCode: env.ACCESS_CODE,
+    providedCode: request.headers.get('x-garden-access-code'),
     images: payload?.images,
     notes: payload?.notes,
     context: payload?.context,

@@ -18,8 +18,9 @@ const todoBadge = document.getElementById('todo-badge');
 
 const state = {
   plants: [],
-  settings: { hemisphere: 'north', location: '' },
+  settings: { hemisphere: 'north', location: '', accessCode: '' },
   identificationAvailable: false,
+  accessCodeRequired: false,
   draft: { images: [], notes: '', busy: false, error: '', paste: '', pasteError: '', showPromptText: false },
   search: '',
 };
@@ -89,6 +90,16 @@ async function sharePhotos(images) {
     return false; // the user backed out of the share sheet
   }
 }
+
+/** Headers for the paid routes: the access code keeps strangers off your credit. */
+function apiHeaders() {
+  const headers = { 'content-type': 'application/json' };
+  if (state.settings.accessCode) headers['x-garden-access-code'] = state.settings.accessCode;
+  return headers;
+}
+
+/** True when the server wants a code and this device hasn't got one saved. */
+const needsAccessCode = () => state.accessCodeRequired && !state.settings.accessCode;
 
 function toast(message, kind = '') {
   toastEl.textContent = message;
@@ -379,9 +390,14 @@ async function renderAdd() {
       <p class="muted small">Sends the photo straight to Claude and fills everything in. Costs a few pence of API credit.</p>
       ${draft.error ? `<div class="callout danger"><strong>That didn't work</strong>${esc(draft.error)}</div>` : ''}
       ${
+        needsAccessCode()
+          ? `<div class="callout"><strong>Access code needed</strong>This is the paid route, so it's locked. Enter your code once in <a href="#/settings">Settings</a> and it's remembered on this device.</div>`
+          : ''
+      }
+      ${
         draft.busy
           ? `<div class="working"><span class="spinner"></span> Looking closely at your photo and writing the care notes… this takes a few moments.</div>`
-          : `<button class="primary button-block" id="identify" ${draft.images.length === 0 ? 'disabled' : ''}>Identify and add</button>`
+          : `<button class="primary button-block" id="identify" ${draft.images.length === 0 || needsAccessCode() ? 'disabled' : ''}>Identify and add</button>`
       }
     </div>`
         : ''
@@ -566,7 +582,7 @@ async function identifyDraft() {
   try {
     const response = await fetch('api/identify', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: apiHeaders(),
       body: JSON.stringify({
         images: draft.images.map((image) => ({ data: image.base64, mediaType: image.mediaType })),
         notes: draft.notes,
@@ -1008,7 +1024,7 @@ async function renderPlant(id) {
     try {
       const response = await fetch('api/ask', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: apiHeaders(),
         body: JSON.stringify({
           question,
           plant: { profile, nickname: plant.nickname, where: plant.where, notes: plant.notes, log: plant.log },
@@ -1044,6 +1060,13 @@ async function renderSettings() {
       <label for="location">Where you garden (optional)</label>
       <input type="text" id="location" value="${esc(state.settings.location)}" placeholder="Devon, UK · USDA zone 8b · Melbourne" />
       <p class="muted small">Passed along when identifying a plant, so the advice suits your climate.</p>
+      ${
+        state.accessCodeRequired
+          ? `<label for="access-code">Access code</label>
+             <input type="text" id="access-code" value="${esc(state.settings.accessCode)}" placeholder="The code you set on the server" autocomplete="off" autocapitalize="none" spellcheck="false" />
+             <p class="muted small">Automatic identification is locked so that nobody who stumbles on the address can spend your API credit. Enter the code once per device.</p>`
+          : ''
+      }
       <div class="button-row" style="margin-top:10px"><button id="save-settings" class="primary">Save</button></div>
     </div>
 
@@ -1063,8 +1086,13 @@ async function renderSettings() {
       <p>${
         state.identificationAvailable
           ? '✅ Switched on. Photos are sent to Claude via this app’s own server; your API key stays on the server.'
-          : '⚠️ Off. Set <code>ANTHROPIC_API_KEY</code> on the server and restart it to identify plants from photos. The built-in library works either way.'
+          : '⚠️ Off. Set <code>ANTHROPIC_API_KEY</code> on the server and restart it to identify plants from photos. The Claude app route and the built-in library work either way.'
       }</p>
+      ${
+        state.identificationAvailable && !state.accessCodeRequired
+          ? '<div class="callout"><strong>No access code set</strong>Anyone who knows this address can spend your API credit. Set <code>ACCESS_CODE</code> on the server if this is deployed anywhere public.</div>'
+          : ''
+      }
     </div>
 
     <p class="muted small center">Care notes are a well-informed starting point, not gospel. Your own garden always has the final say — and check twice before eating anything.</p>`;
@@ -1074,8 +1102,16 @@ async function renderSettings() {
     state.settings.location = document.getElementById('location').value.trim();
     await settings.set('hemisphere', state.settings.hemisphere);
     await settings.set('location', state.settings.location);
+
+    const codeField = document.getElementById('access-code');
+    if (codeField) {
+      state.settings.accessCode = codeField.value.trim();
+      await settings.set('accessCode', state.settings.accessCode);
+    }
+
     updateTodoBadge();
     toast('Saved.');
+    renderSettings();
   });
 
   document.getElementById('export').addEventListener('click', async () => {
@@ -1108,13 +1144,14 @@ async function renderSettings() {
 
 async function boot() {
   const stored = await settings.all();
-  state.settings = { hemisphere: 'north', location: '', ...stored };
+  state.settings = { hemisphere: 'north', location: '', accessCode: '', ...stored };
 
   try {
     const response = await fetch('api/status');
     if (response.ok) {
       const status = await response.json();
       state.identificationAvailable = Boolean(status.identificationAvailable);
+      state.accessCodeRequired = Boolean(status.accessCodeRequired);
     }
   } catch {
     // Offline: the built-in library and everything already saved still work.

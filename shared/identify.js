@@ -13,8 +13,47 @@ const ACCEPTED_MEDIA = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/
 
 const fail = (status, error, message) => ({ status, body: { error, message } });
 
+/**
+ * Compare without leaking how much of the code matched. The lengths are still
+ * distinguishable by timing, which is fine — knowing the length of a secret you
+ * still have to guess buys an attacker almost nothing.
+ */
+function equalInConstantTime(a, b) {
+  const encoder = new TextEncoder();
+  const left = encoder.encode(a);
+  const right = encoder.encode(b);
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let i = 0; i < left.length; i += 1) difference |= left[i] ^ right[i];
+  return difference === 0;
+}
+
+/**
+ * The deployment is public, so anything that spends money is gated behind a
+ * shared code. Checked here rather than in the adapters so that neither runtime
+ * can forget it. Returns null when the request may proceed.
+ */
+function refuseUnlessAuthorised({ requiredCode, providedCode }) {
+  if (!requiredCode) return null; // no code configured — local development
+  if (typeof providedCode !== 'string' || !equalInConstantTime(requiredCode, providedCode)) {
+    return fail(401, 'unauthorised', 'Wrong or missing access code. Add it under Settings on this device.');
+  }
+  return null;
+}
+
 /** Identify a plant from photos and return a full care profile. */
-export async function identifyPlant({ apiKey, model = DEFAULT_MODEL, images, notes, context }) {
+export async function identifyPlant({
+  apiKey,
+  model = DEFAULT_MODEL,
+  requiredCode,
+  providedCode,
+  images,
+  notes,
+  context,
+}) {
+  const refusal = refuseUnlessAuthorised({ requiredCode, providedCode });
+  if (refusal) return refusal;
+
   if (!apiKey) {
     return fail(503, 'no_credentials', 'This server has no Anthropic API key, so it cannot identify photos.');
   }
@@ -63,7 +102,18 @@ export async function identifyPlant({ apiKey, model = DEFAULT_MODEL, images, not
 }
 
 /** Answer a follow-up question about a plant already in the library. */
-export async function answerQuestion({ apiKey, model = DEFAULT_MODEL, question, plant, context }) {
+export async function answerQuestion({
+  apiKey,
+  model = DEFAULT_MODEL,
+  requiredCode,
+  providedCode,
+  question,
+  plant,
+  context,
+}) {
+  const refusal = refuseUnlessAuthorised({ requiredCode, providedCode });
+  if (refusal) return refusal;
+
   if (!apiKey) {
     return fail(503, 'no_credentials', 'This server has no Anthropic API key, so it cannot answer questions.');
   }

@@ -8,6 +8,7 @@ export function onRequestGet({ env }) {
   return new Response(
     JSON.stringify({
       identificationAvailable: Boolean(env.ANTHROPIC_API_KEY),
+      accessCodeRequired: Boolean(env.ACCESS_CODE),
       model: env.GARDEN_MODEL || DEFAULT_MODEL,
     }),
     { headers: { 'content-type': 'application/json; charset=utf-8' } },

@@ -33,24 +33,47 @@ const PORT = process.env.PORT || 3000;
 const MODEL = process.env.GARDEN_MODEL || DEFAULT_MODEL;
 // The key never leaves the server; the browser only ever talks to these routes.
 const API_KEY = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
+// Optional locally, essential once deployed: without it, anyone who finds the
+// URL can spend your API credit.
+const ACCESS_CODE = process.env.ACCESS_CODE;
 
 const app = express();
 app.use(express.json({ limit: '30mb' }));
 app.use(express.static(path.join(here, 'public')));
 
 app.get('/api/status', (_req, res) => {
-  res.json({ identificationAvailable: Boolean(API_KEY), model: MODEL });
+  res.json({
+    identificationAvailable: Boolean(API_KEY),
+    accessCodeRequired: Boolean(ACCESS_CODE),
+    model: MODEL,
+  });
 });
 
 app.post('/api/identify', async (req, res) => {
   const { images, notes, context } = req.body ?? {};
-  const { status, body } = await identifyPlant({ apiKey: API_KEY, model: MODEL, images, notes, context });
+  const { status, body } = await identifyPlant({
+    apiKey: API_KEY,
+    model: MODEL,
+    requiredCode: ACCESS_CODE,
+    providedCode: req.get('x-garden-access-code'),
+    images,
+    notes,
+    context,
+  });
   res.status(status).json(body);
 });
 
 app.post('/api/ask', async (req, res) => {
   const { question, plant, context } = req.body ?? {};
-  const { status, body } = await answerQuestion({ apiKey: API_KEY, model: MODEL, question, plant, context });
+  const { status, body } = await answerQuestion({
+    apiKey: API_KEY,
+    model: MODEL,
+    requiredCode: ACCESS_CODE,
+    providedCode: req.get('x-garden-access-code'),
+    question,
+    plant,
+    context,
+  });
   res.status(status).json(body);
 });
 
@@ -73,5 +96,12 @@ app.listen(PORT, () => {
       ? `     Photo identification: on (${MODEL})`
       : '     Photo identification: OFF — set ANTHROPIC_API_KEY to switch it on.\n     You can still add plants via the Claude app or the built-in library.',
   );
+  if (API_KEY) {
+    console.log(
+      ACCESS_CODE
+        ? '     Access code: on'
+        : '     Access code: OFF — fine locally, but set ACCESS_CODE before deploying anywhere public.',
+    );
+  }
   console.log('');
 });

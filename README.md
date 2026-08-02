@@ -88,8 +88,24 @@ Then open <http://localhost:3000>, or the LAN address the server prints if you'r
 | Variable | Purpose |
 | --- | --- |
 | `ANTHROPIC_API_KEY` | Enables automatic identification and in-app follow-up questions. |
+| `ACCESS_CODE` | Shared code required by the two paid routes. **Set this on any public deployment.** |
 | `PORT` | Defaults to `3000`. |
 | `GARDEN_MODEL` | Defaults to `claude-opus-5`. |
+
+### The access code
+
+A deployed URL is public, and the paid routes spend real money, so `ACCESS_CODE` gates them. The
+check lives in `shared/identify.js` and runs **before** the API key is read, so an unauthorised
+request never reaches Anthropic and cannot cost anything. The comparison is constant-time.
+
+The browser sends the code as an `x-garden-access-code` header; you enter it once per device under
+Settings and it is kept in IndexedDB. `/api/status` advertises whether a code is required, so the
+app can grey out the paid route and explain why rather than failing at the point of use. The free
+routes — the Claude-app paste flow and the built-in library — are never gated.
+
+This is a shared secret, not a login: it stops a stranger who finds the URL, not someone you gave
+the code to. Pair it with a spend limit in the Anthropic console, which is what actually bounds the
+damage of any abuse.
 
 ## How it's put together
 

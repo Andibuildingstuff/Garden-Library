@@ -13,6 +13,8 @@ export async function onRequestPost({ request, env }) {
   const { status, body } = await answerQuestion({
     apiKey: env.ANTHROPIC_API_KEY,
     model: env.GARDEN_MODEL || DEFAULT_MODEL,
+    requiredCode: env.ACCESS_CODE,
+    providedCode: request.headers.get('x-garden-access-code'),
     question: payload?.question,
     plant: payload?.plant,
     context: payload?.context,
