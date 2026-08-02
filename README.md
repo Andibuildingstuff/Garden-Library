@@ -53,15 +53,23 @@ npx serve public          # or any static server
 ```
 
 You want it on HTTPS for phone use — the clipboard, the share sheet and offline caching all need a
-secure context. Two free ways, both already configured:
+secure context.
 
-- **GitHub Pages** — `.github/workflows/pages.yml` publishes `public/` on every push to `main` or the
-  feature branch. Pages on a **private** repo requires a paid GitHub plan; on the free plan the repo
-  has to be public, or the workflow fails at `configure-pages` with *"Create Pages site failed:
-  Resource not accessible by integration"*. If it still fails once the repo is public, set
-  **Settings → Pages → Source** to **GitHub Actions** by hand and re-run.
-- **Netlify or Cloudflare Pages** — `netlify.toml` sets `public/` as the publish directory with no
-  build step. Both deploy from a private repo on their free tier.
+**Cloudflare Pages — static app *and* the API, which is what you want for one-tap identification.**
+Connect the repo, set the build output directory to `public`, and add `ANTHROPIC_API_KEY` as an
+environment variable. Cloudflare picks up `functions/api/*` automatically and serves them at
+`/api/*` on the same origin, so there is no CORS to configure and no cold start to sit through.
+
+**GitHub Pages — static only**, so the app runs in Claude-app paste mode with no API. Configured in
+`.github/workflows/pages.yml`, which publishes `public/` on every push. Pages on a **private** repo
+requires a paid GitHub plan; on the free plan the repo has to be public, or the workflow fails at
+`configure-pages` with *"Create Pages site failed: Resource not accessible by integration"*. If it
+still fails once the repo is public, set **Settings → Pages → Source** to **GitHub Actions** by hand
+and re-run.
+
+**Netlify — also static only.** `netlify.toml` sets `public/` as the publish directory. Netlify
+Functions use a different signature from the Cloudflare ones in `functions/`, so the API would need
+a separate adapter there.
 
 For automatic identification you need the Node server, which keeps the API key off the phone:
 
@@ -86,7 +94,9 @@ Then open <http://localhost:3000>, or the LAN address the server prints if you'r
 ## How it's put together
 
 ```
-server.js              Express: serves the app, proxies two API routes (optional)
+shared/identify.js     The two API calls, shared by both runtimes below
+functions/api/*.js     Production: Cloudflare Pages Functions (edge, no cold start)
+server.js              Local dev: the Node adapter plus a static file server
 public/profile.js      The care-profile schema, the prompts, and the paste parser
 public/app.js          The whole UI — vanilla ES modules, no build step
 public/care.js         Months → jobs: hemisphere shifting, watering clock, calendar
