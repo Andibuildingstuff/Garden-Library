@@ -72,16 +72,23 @@ export async function identifyPlant({
   const client = new Anthropic({ apiKey });
 
   try {
-    const response = await client.messages.create({
-      model,
-      max_tokens: 16000,
-      system: SYSTEM_PROMPT,
-      output_config: {
-        effort: 'medium',
-        format: { type: 'json_schema', schema: PLANT_PROFILE_SCHEMA },
-      },
-      messages: [{ role: 'user', content: buildIdentifyContent({ images, notes, context }) }],
-    });
+    // max_tokens covers the thinking *and* the reply, and on this model thinking
+    // is on unless you say otherwise, so a 68-field profile needs real headroom.
+    // Above ~16k the SDK refuses a non-streaming call outright — it assumes the
+    // request could outlast the 10-minute HTTP limit — so stream and collect.
+    const response = await client.messages
+      .stream({
+        model,
+        max_tokens: 32000,
+        system: SYSTEM_PROMPT,
+        thinking: { type: 'adaptive' },
+        output_config: {
+          effort: 'medium',
+          format: { type: 'json_schema', schema: PLANT_PROFILE_SCHEMA },
+        },
+        messages: [{ role: 'user', content: buildIdentifyContent({ images, notes, context }) }],
+      })
+      .finalMessage();
 
     if (response.stop_reason === 'refusal') {
       return fail(422, 'refused', 'Claude declined to answer for this photo. Try a different picture, or add the plant by hand.');
@@ -136,8 +143,10 @@ export async function answerQuestion({
   try {
     const response = await client.messages.create({
       model,
-      max_tokens: 4000,
+      // Same headroom point as above, smaller: thinking shares this budget.
+      max_tokens: 8000,
       system: `${SYSTEM_PROMPT}\n\nAnswer follow-up questions in a few short paragraphs of plain prose. Be specific and practical. If the answer depends on something you cannot see, say what to check.`,
+      thinking: { type: 'adaptive' },
       output_config: { effort: 'low' },
       messages: [{ role: 'user', content: lines.join('\n') }],
     });
@@ -168,10 +177,14 @@ function describeError(error, fallbackMessage) {
   if (error instanceof Anthropic.APIConnectionError) {
     return fail(504, 'offline', 'Could not reach the API. Check the connection.');
   }
+
+  // Whatever went wrong, say so. These routes are behind the access code, so the
+  // only person who sees this is the one who owns the API key — and a generic
+  // "that didn't work" costs a round trip through the logs to diagnose.
   if (error instanceof Anthropic.APIError) {
     console.error('Anthropic API error', error.status, error.message);
-    return fail(502, 'api_error', fallbackMessage);
+    return fail(502, 'api_error', `${fallbackMessage} The API said: ${error.status} ${error.message}`);
   }
   console.error(error);
-  return fail(500, 'server_error', fallbackMessage);
+  return fail(500, 'server_error', `${fallbackMessage} The server said: ${error?.message || error}`);
 }
