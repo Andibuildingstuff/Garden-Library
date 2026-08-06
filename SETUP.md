@@ -20,7 +20,7 @@ starts empty, so export them first.
 3. Save the file somewhere you can find it again — on an iPhone it goes to the
    Files app
 
-You will import this in Step 7.
+You will import this in Step 6.
 
 ---
 
@@ -50,7 +50,7 @@ damp-secateurs-quince-41
 ```
 
 Not a password you use anywhere else. Write it down — you will type it into
-Cloudflare in Step 4 and into your phone in Step 7.
+Cloudflare in Step 4 and into your phone in Step 6.
 
 ---
 
@@ -60,17 +60,20 @@ Cloudflare in Step 4 and into your phone in Step 7.
 2. In the left sidebar: **Workers & Pages** → **Create** → the **Pages** tab →
    **Connect to Git**
 3. Authorise GitHub, choose the **Garden-Library** repository, then **Begin setup**
-4. Fill in the build settings **exactly**:
+4. The only setting you need to fill in is:
 
    | Field | Value |
    | --- | --- |
-   | Production branch | `claude/plant-care-app-je7fya` |
-   | Framework preset | None |
    | Build command | `npm install` |
-   | Build output directory | `public` |
 
-   The build command looks odd for an app with no build step. It is there to make
-   sure the Anthropic library is installed so the API functions can use it.
+   It looks odd for an app with no build step, but it makes sure the Anthropic
+   library is installed so the API functions can use it.
+
+   **Anything else can be left alone.** `wrangler.toml` in the repo already sets
+   the output directory and the Node compatibility flag, and the repository has
+   only one branch, so there is no production branch to choose. If you *do* see
+   fields for framework preset or output directory, leave them at their defaults —
+   the file wins.
 
 5. Expand **Environment variables (advanced)** and add **two**:
 
@@ -86,19 +89,7 @@ Cloudflare in Step 4 and into your phone in Step 7.
 
 ---
 
-## Step 5 — Switch on Node compatibility (1 minute)
-
-The Anthropic library needs a couple of Node built-ins that Cloudflare only
-provides when asked.
-
-1. In your new Pages project: **Settings** → **Functions** (may be called
-   **Runtime**) → **Compatibility flags**
-2. Add `nodejs_compat` to **Production**
-3. Save, then **Deployments** → **⋯** on the newest one → **Retry deployment**
-
----
-
-## Step 6 — Check it before you touch your phone
+## Step 5 — Check it before you touch your phone
 
 In any browser, visit:
 
@@ -119,7 +110,7 @@ problem.
 
 ---
 
-## Step 7 — Put it on your iPhone (3 minutes)
+## Step 6 — Put it on your iPhone (3 minutes)
 
 1. Open your `pages.dev` address in **Safari**
 2. **Share** → **Add to Home Screen** → **Add**
@@ -145,7 +136,7 @@ problem.
 | "The Anthropic API key was rejected" | Wrong key, or no credit | Re-copy the key (watch for trailing spaces); check Billing shows a balance. |
 | "Wrong or missing access code" | Phone and server disagree | Re-enter it in Settings on the phone. It's case-sensitive. |
 | App loads but there's no ⚡ card | The app can't see the API | You're probably on the old `github.io` address. Use the `pages.dev` one. |
-| Something about `nodejs_compat` in the logs | Step 5 was missed or didn't take | Add the flag and **redeploy** — the flag alone doesn't rebuild. |
+| Something about `nodejs_compat`, or a missing Node module, in the logs | The `wrangler.toml` wasn't picked up | Confirm the file is in the repo root, then redeploy. |
 
 The two addresses both keep working, and it's worth knowing which is which:
 

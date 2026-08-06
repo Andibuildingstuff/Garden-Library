@@ -1,0 +1,17 @@
+# Cloudflare Pages configuration.
+#
+# Keeping this in the repo means the fiddly dashboard settings don't have to be
+# found by hand — Cloudflare reads them from here instead. Deploying then only
+# needs the build command and the two secrets.
+
+name = "garden-library"
+
+# Where the static app lives. Everything under functions/ is picked up
+# automatically and served at /api/*.
+pages_build_output_dir = "public"
+
+# nodejs_compat gives the Anthropic library the Node built-ins it expects.
+# The compatibility date must be 2024-09-23 or later for the fuller Node
+# support; there is no reason to move it unless something needs a newer API.
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
