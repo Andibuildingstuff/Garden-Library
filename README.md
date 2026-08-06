@@ -127,8 +127,15 @@ scripts/make-icons.js  Draws the app icons from scratch (npm run icons)
 ```
 
 The API key lives on the server and never reaches the browser. Photos are downscaled to 1400px in
-the browser before being sent. The profile comes back as structured JSON enforced by the Messages
-API, so the app never has to guess at half-formed output.
+the browser before being sent.
+
+Both routes ask for the profile as JSON in the prompt, rendered from `PLANT_PROFILE_SCHEMA` by
+`schemaToSpec()`, and read the reply with `parsePastedProfile()`. The API route used to pin the
+shape with a `json_schema` output format instead, which is stricter — but this profile is 82
+properties and 97 enum members across four levels, and the API rejects the grammar that compiles to
+as too large. Trimming it to fit would have meant dropping fields, so the schema stays whole and
+serves as the single source of truth for both routes. The parser tolerates a code fence or a stray
+"here you go", and an unparseable reply is retried once.
 
 ## A word of caution
 

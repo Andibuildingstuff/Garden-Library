@@ -5,7 +5,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
-import { PLANT_PROFILE_SCHEMA, SYSTEM_PROMPT, buildIdentifyContent } from '../public/profile.js';
+import { SYSTEM_PROMPT, buildIdentifyContent, parsePastedProfile } from '../public/profile.js';
 
 export const DEFAULT_MODEL = 'claude-opus-5';
 
@@ -76,35 +76,62 @@ export async function identifyPlant({
     // is on unless you say otherwise, so a 68-field profile needs real headroom.
     // Above ~16k the SDK refuses a non-streaming call outright — it assumes the
     // request could outlast the 10-minute HTTP limit — so stream and collect.
-    const response = await client.messages
-      .stream({
-        model,
-        max_tokens: 32000,
-        system: SYSTEM_PROMPT,
-        thinking: { type: 'adaptive' },
-        output_config: {
-          effort: 'medium',
-          format: { type: 'json_schema', schema: PLANT_PROFILE_SCHEMA },
-        },
-        messages: [{ role: 'user', content: buildIdentifyContent({ images, notes, context }) }],
-      })
-      .finalMessage();
+    const ask = () =>
+      client.messages
+        .stream({
+          model,
+          max_tokens: 32000,
+          system: SYSTEM_PROMPT,
+          thinking: { type: 'adaptive' },
+          output_config: { effort: 'medium' },
+          messages: [{ role: 'user', content: buildIdentifyContent({ images, notes, context }) }],
+        })
+        .finalMessage();
 
-    if (response.stop_reason === 'refusal') {
-      return fail(422, 'refused', 'Claude declined to answer for this photo. Try a different picture, or add the plant by hand.');
+    // Without a schema pinning the output there is a small chance of a reply
+    // that won't parse. The call has already been paid for at that point, so
+    // one more attempt is cheaper than handing back nothing.
+    let response = await ask();
+    let profile = readProfile(response);
+    if (profile.error === 'unparseable') {
+      response = await ask();
+      profile = readProfile(response);
     }
-    if (response.stop_reason === 'max_tokens') {
-      return fail(502, 'truncated', 'The care profile was cut short. Please try again.');
-    }
+    if (profile.error) return profile.failure;
 
-    const text = response.content.find((block) => block.type === 'text')?.text;
-    if (!text) {
-      return fail(502, 'empty', 'No profile came back. Please try again.');
-    }
-
-    return { status: 200, body: { profile: JSON.parse(text), model: response.model } };
+    return { status: 200, body: { profile: profile.value, model: response.model } };
   } catch (error) {
     return describeError(error, 'Could not identify that photo.');
+  }
+}
+
+/**
+ * Turn one reply into a profile, or into the reason there isn't one. Flags the
+ * cases worth a second attempt ('unparseable') apart from the ones where asking
+ * again would only fail the same way.
+ */
+function readProfile(response) {
+  if (response.stop_reason === 'refusal') {
+    return {
+      error: 'refused',
+      failure: fail(422, 'refused', 'Claude declined to answer for this photo. Try a different picture, or add the plant by hand.'),
+    };
+  }
+  if (response.stop_reason === 'max_tokens') {
+    return {
+      error: 'truncated',
+      failure: fail(502, 'truncated', 'The care profile was cut short. Please try again.'),
+    };
+  }
+
+  const text = response.content.find((block) => block.type === 'text')?.text;
+  try {
+    return { value: parsePastedProfile(text) };
+  } catch (error) {
+    return {
+      error: 'unparseable',
+      failure: fail(502, 'unparseable', `The reply wasn't a usable profile. ${error.message}`),
+    };
   }
 }
 

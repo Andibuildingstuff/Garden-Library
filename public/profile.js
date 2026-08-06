@@ -421,6 +421,20 @@ export function buildIdentifyContent({ images, notes, context }) {
   }
   if (notes) lines.push(`Notes from the gardener: ${notes}`);
 
+  // The profile is asked for in the prompt rather than pinned with a JSON
+  // schema: this shape compiles to a grammar the API rejects as too large, and
+  // trimming it to fit would mean dropping fields. Same spec the Claude-app
+  // route pastes, so the two still can't drift.
+  lines.push(
+    '',
+    'Reply with a single JSON object and nothing else — no preamble, no explanation, no code fence.',
+    'Fill in every field. Use an empty string where something genuinely does not apply.',
+    '',
+    '{',
+    schemaToSpec(PLANT_PROFILE_SCHEMA),
+    '}',
+  );
+
   content.push({ type: 'text', text: lines.join('\n') });
   return content;
 }
