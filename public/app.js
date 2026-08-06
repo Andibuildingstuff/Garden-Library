@@ -21,6 +21,9 @@ const state = {
   settings: { hemisphere: 'north', location: '', accessCode: '' },
   identificationAvailable: false,
   accessCodeRequired: false,
+  // What /api/status said, kept so Settings can show it. Diagnosing a
+  // deployment from a phone is otherwise guesswork.
+  serverStatus: { checked: false, reachable: false, model: '' },
   draft: { images: [], notes: '', busy: false, error: '', paste: '', pasteError: '', showPromptText: false },
   search: '',
 };
@@ -1082,6 +1085,23 @@ async function renderSettings() {
     </div>
 
     <div class="card">
+      <h2>Connection</h2>
+      <dl class="facts">
+        <dt>Server</dt><dd>${state.serverStatus.reachable ? '✅ reachable' : '⚠️ not reachable — this address serves the app only'}</dd>
+        <dt>Identification</dt><dd>${state.identificationAvailable ? '✅ on' : '⚠️ off — no API key on the server'}</dd>
+        <dt>Access code</dt><dd>${
+          state.accessCodeRequired
+            ? state.settings.accessCode
+              ? '✅ required, and set on this device'
+              : '⚠️ required, but not set on this device'
+            : 'not required'
+        }</dd>
+        ${state.serverStatus.model ? `<dt>Model</dt><dd>${esc(state.serverStatus.model)}</dd>` : ''}
+      </dl>
+      <p class="muted small">Checked when the app started. Pull down to reload the page if you have just changed something on the server.</p>
+    </div>
+
+    <div class="card">
       <h2>Photo identification</h2>
       <p>${
         state.identificationAvailable
@@ -1152,10 +1172,18 @@ async function boot() {
       const status = await response.json();
       state.identificationAvailable = Boolean(status.identificationAvailable);
       state.accessCodeRequired = Boolean(status.accessCodeRequired);
+      state.serverStatus = {
+        checked: true,
+        reachable: true,
+        model: status.model ?? '',
+      };
+    } else {
+      state.serverStatus = { checked: true, reachable: false, model: '' };
     }
   } catch {
     // Offline: the built-in library and everything already saved still work.
     state.identificationAvailable = false;
+    state.serverStatus = { checked: true, reachable: false, model: '' };
   }
 
   await refreshPlants();
