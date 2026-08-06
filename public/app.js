@@ -1087,6 +1087,9 @@ async function renderSettings() {
     <div class="card">
       <h2>Connection</h2>
       <dl class="facts">
+        <dt>Address</dt><dd>${esc(location.host || 'local file')}${
+          /github\.io$/i.test(location.host) ? ' — the free paste-only copy' : ''
+        }</dd>
         <dt>Server</dt><dd>${state.serverStatus.reachable ? '✅ reachable' : '⚠️ not reachable — this address serves the app only'}</dd>
         <dt>Identification</dt><dd>${state.identificationAvailable ? '✅ on' : '⚠️ off — no API key on the server'}</dd>
         <dt>Access code</dt><dd>${

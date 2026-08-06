@@ -76,7 +76,13 @@ The app deploys as a **Worker**: one Worker serves both the app itself and the
 
 5. Deploy. The first build will succeed but the app won't work yet — it has no
    key. That's expected; the next step fixes it.
-6. You get an address like `garden-library.YOUR-NAME.workers.dev`. Write it down.
+
+### Find your address
+
+**Workers & Pages** → **garden-library**. The `workers.dev` address is on that
+page, near the top — something like `garden-library.YOUR-NAME.workers.dev`. If
+it isn't obvious, it is also under **Settings** → **Domains & Routes**. Write it
+down; it is the address you will use on your phone from now on.
 
 ### Then add the two secrets
 
@@ -91,8 +97,17 @@ wipe them):
 
 Watch for a space pasted onto the end of the key.
 
-Then **Deployments** → **⋯** on the newest → **Retry deployment**, so the Worker
-restarts with the secrets in place.
+### Then redeploy, so the Worker picks the secrets up
+
+A Worker only sees a secret if it restarts after the secret was added. Any one
+of these does it — use whichever you can find:
+
+- The **Deployments** tab (some accounts call it **Builds**): the ⋯ menu on the
+  newest entry has **Retry deployment** or **Retry build**.
+- Any new commit pushed to the repository triggers a fresh build automatically,
+  because Cloudflare is watching GitHub. If you can't find the button, ask for a
+  commit and one will be pushed.
+- Saving a variable sometimes prompts **Deploy** on its own. Take it if offered.
 
 ---
 
@@ -143,6 +158,7 @@ problem.
 | "The Anthropic API key was rejected" | Wrong key, or no credit | Re-copy the key (watch for trailing spaces); check Billing shows a balance. |
 | "Wrong or missing access code" | Phone and server disagree | Re-enter it in Settings on the phone. It's case-sensitive. |
 | App loads but there's no ⚡ card | The app can't see the API | You're probably on the old `github.io` address. Use the `workers.dev` one. |
+| Settings has no **Connection** card, or no **Access code** box | You're on the old `github.io` build | Same fix. Settings → **Connection** → **Address** tells you which one you're on. |
 | A missing Node module in the build or runtime logs | `nodejs_compat` isn't applying | Confirm `wrangler.toml` is in the repo root and unedited, then redeploy. |
 
 The two addresses both keep working, and it's worth knowing which is which:
