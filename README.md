@@ -58,10 +58,11 @@ npx serve public          # or any static server
 You want it on HTTPS for phone use — the clipboard, the share sheet and offline caching all need a
 secure context.
 
-**Cloudflare Pages — static app *and* the API, which is what you want for one-tap identification.**
-Connect the repo, set the build output directory to `public`, and add `ANTHROPIC_API_KEY` as an
-environment variable. Cloudflare picks up `functions/api/*` automatically and serves them at
-`/api/*` on the same origin, so there is no CORS to configure and no cold start to sit through.
+**A Cloudflare Worker — static app *and* the API, which is what you want for one-tap
+identification.** `wrangler.toml` and `worker.js` in the repo root do the work: the Worker serves
+`public/` through the assets binding and handles `/api/*` itself, on one origin, so there is no CORS
+to configure and no cold start to sit through. Deploying needs only a `npm install` build command
+and two secrets. Full walkthrough in [SETUP.md](SETUP.md).
 
 **GitHub Pages — static only**, so the app runs in Claude-app paste mode with no API. Configured in
 `.github/workflows/pages.yml`, which publishes `public/` on every push. Pages on a **private** repo
@@ -114,7 +115,7 @@ damage of any abuse.
 
 ```
 shared/identify.js     The two API calls, shared by both runtimes below
-functions/api/*.js     Production: Cloudflare Pages Functions (edge, no cold start)
+worker.js              Production: the Cloudflare Worker (edge, no cold start)
 server.js              Local dev: the Node adapter plus a static file server
 public/profile.js      The care-profile schema, the prompts, and the paste parser
 public/app.js          The whole UI — vanilla ES modules, no build step

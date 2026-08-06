@@ -56,36 +56,43 @@ Cloudflare in Step 4 and into your phone in Step 6.
 
 ## Step 4 — Deploy on Cloudflare (5 minutes)
 
+The app deploys as a **Worker**: one Worker serves both the app itself and the
+`/api` routes, on a single address.
+
 1. Go to <https://dash.cloudflare.com> and sign up (free, no card needed)
-2. In the left sidebar: **Workers & Pages** → **Create** → the **Pages** tab →
-   **Connect to Git**
-3. Authorise GitHub, choose the **Garden-Library** repository, then **Begin setup**
-4. The only setting you need to fill in is:
+2. **Workers & Pages** → **Create** → **Import a repository**
+3. Authorise GitHub and choose **Garden-Library**
+4. The only build setting you need is:
 
    | Field | Value |
    | --- | --- |
    | Build command | `npm install` |
 
-   It looks odd for an app with no build step, but it makes sure the Anthropic
-   library is installed so the API functions can use it.
+   Leave the deploy command as its default, `npx wrangler deploy`.
 
-   **Anything else can be left alone.** `wrangler.toml` in the repo already sets
-   the output directory and the Node compatibility flag, and the repository has
-   only one branch, so there is no production branch to choose. If you *do* see
-   fields for framework preset or output directory, leave them at their defaults —
-   the file wins.
+   **Everything else can be left alone.** `wrangler.toml` in the repo sets the
+   Worker name, where the static files live, and the Node compatibility flag; the
+   repository has a single branch, so there is nothing to choose there either.
 
-5. Expand **Environment variables (advanced)** and add **two**:
+5. Deploy. The first build will succeed but the app won't work yet — it has no
+   key. That's expected; the next step fixes it.
+6. You get an address like `garden-library.YOUR-NAME.workers.dev`. Write it down.
 
-   | Variable name | Value |
-   | --- | --- |
-   | `ANTHROPIC_API_KEY` | the `sk-ant-...` key from Step 2 |
-   | `ACCESS_CODE` | the code from Step 3 |
+### Then add the two secrets
 
-   Watch for spaces pasted on the end of the key.
+In the Worker: **Settings** → **Variables and Secrets** → **Add**. Add both as
+type **Secret** (not plain text — secrets are encrypted, and a redeploy won't
+wipe them):
 
-6. **Save and Deploy**, and wait a minute or two.
-7. You get an address like `garden-library-abc.pages.dev`. Write it down.
+| Name | Value |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | the `sk-ant-...` key from Step 2 |
+| `ACCESS_CODE` | the code from Step 3 |
+
+Watch for a space pasted onto the end of the key.
+
+Then **Deployments** → **⋯** on the newest → **Retry deployment**, so the Worker
+restarts with the secrets in place.
 
 ---
 
@@ -94,7 +101,7 @@ Cloudflare in Step 4 and into your phone in Step 6.
 In any browser, visit:
 
 ```
-https://YOUR-SITE.pages.dev/api/status
+https://YOUR-WORKER.workers.dev/api/status
 ```
 
 You should see exactly this:
@@ -112,7 +119,7 @@ problem.
 
 ## Step 6 — Put it on your iPhone (3 minutes)
 
-1. Open your `pages.dev` address in **Safari**
+1. Open your `workers.dev` address in **Safari**
 2. **Share** → **Add to Home Screen** → **Add**
 3. **Delete the old Garden Library icon** so you don't use the wrong one
 4. Open the new icon → **⚙️ Settings**:
@@ -129,18 +136,18 @@ problem.
 
 | What you see | What it means | Fix |
 | --- | --- | --- |
-| `/api/status` returns 404 or HTML | The functions didn't deploy | Check the build output directory is `public` and that the `functions` folder is in the repo root. Redeploy. |
-| `"identificationAvailable":false` | The key wasn't read | Check the variable is named `ANTHROPIC_API_KEY` exactly, is set on **Production**, and redeploy — variables only apply to builds made after they're added. |
+| `/api/status` returns the app's HTML, or 404 | The Worker script didn't deploy | The deploy command must be `npx wrangler deploy`, and `wrangler.toml` and `worker.js` must both be in the repo root. Redeploy. |
+| `"identificationAvailable":false` | The key wasn't read | Check the secret is named `ANTHROPIC_API_KEY` exactly, then redeploy — secrets only reach a Worker that restarts after they're added. |
 | `"accessCodeRequired":false` | The code wasn't read | Same again, for `ACCESS_CODE`. |
 | Build fails on Cloudflare | Usually the build command | It should be `npm install`. Read the build log for the actual error. |
 | "The Anthropic API key was rejected" | Wrong key, or no credit | Re-copy the key (watch for trailing spaces); check Billing shows a balance. |
 | "Wrong or missing access code" | Phone and server disagree | Re-enter it in Settings on the phone. It's case-sensitive. |
-| App loads but there's no ⚡ card | The app can't see the API | You're probably on the old `github.io` address. Use the `pages.dev` one. |
-| Something about `nodejs_compat`, or a missing Node module, in the logs | The `wrangler.toml` wasn't picked up | Confirm the file is in the repo root, then redeploy. |
+| App loads but there's no ⚡ card | The app can't see the API | You're probably on the old `github.io` address. Use the `workers.dev` one. |
+| A missing Node module in the build or runtime logs | `nodejs_compat` isn't applying | Confirm `wrangler.toml` is in the repo root and unedited, then redeploy. |
 
 The two addresses both keep working, and it's worth knowing which is which:
 
-- **`pages.dev`** — the full app, one-tap identification, needs the access code
+- **`workers.dev`** — the full app, one-tap identification, needs the access code
 - **`github.io`** — free forever, Claude-app paste flow only, no API
 
 Your plants are stored separately on each. Use one.
