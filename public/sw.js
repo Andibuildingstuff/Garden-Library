@@ -3,7 +3,7 @@
 
 // Paths are relative so the app works wherever it is hosted, including in a
 // subfolder on GitHub Pages.
-const CACHE = 'garden-library-v3';
+const CACHE = 'garden-library-v4';
 const SHELL = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const SHELL = [
   './db.js',
   './care.js',
   './profile.js',
+  './version.js',
   './plantData.js',
   './manifest.webmanifest',
   './icon-192.png',

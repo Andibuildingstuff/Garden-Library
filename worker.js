@@ -5,6 +5,7 @@
 // the local Express server uses too, so the two can't drift apart.
 
 import { DEFAULT_MODEL, answerQuestion, identifyPlant } from './shared/identify.js';
+import { BUILD } from './public/version.js';
 
 const json = (status, body) =>
   new Response(JSON.stringify(body), {
@@ -30,6 +31,7 @@ export default {
         identificationAvailable: Boolean(env.ANTHROPIC_API_KEY),
         accessCodeRequired: Boolean(env.ACCESS_CODE),
         model: env.GARDEN_MODEL || DEFAULT_MODEL,
+        version: BUILD,
       });
     }
 

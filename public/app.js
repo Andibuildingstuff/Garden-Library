@@ -11,6 +11,7 @@ import {
 } from './care.js';
 import { BUILT_IN_PLANTS, findBuiltIn } from './plantData.js';
 import { buildPasteablePrompt, parsePastedProfile } from './profile.js';
+import { BUILD } from './version.js';
 
 const view = document.getElementById('view');
 const toastEl = document.getElementById('toast');
@@ -23,7 +24,7 @@ const state = {
   accessCodeRequired: false,
   // What /api/status said, kept so Settings can show it. Diagnosing a
   // deployment from a phone is otherwise guesswork.
-  serverStatus: { checked: false, reachable: false, model: '' },
+  serverStatus: { checked: false, reachable: false, model: '', version: '' },
   draft: { images: [], notes: '', busy: false, error: '', paste: '', pasteError: '', showPromptText: false },
   search: '',
 };
@@ -592,8 +593,18 @@ async function identifyDraft() {
         context: { hemisphere: state.settings.hemisphere, location: state.settings.location },
       }),
     });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.message || 'Something went wrong.');
+    // A gateway timeout or a crashed Worker answers with an HTML error page, not
+    // JSON. Say so plainly rather than surfacing a parser error about a '<'.
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(
+        `The server replied with something that wasn't JSON (HTTP ${response.status}). ` +
+          'That usually means the request timed out or the server fell over.',
+      );
+    }
+    if (!response.ok) throw new Error(payload.message || `Something went wrong (HTTP ${response.status}).`);
 
     const profile = payload.profile;
     if (profile.isPlant === false) {
@@ -1100,6 +1111,13 @@ async function renderSettings() {
             : 'not required'
         }</dd>
         ${state.serverStatus.model ? `<dt>Model</dt><dd>${esc(state.serverStatus.model)}</dd>` : ''}
+        <dt>App build</dt><dd>${esc(BUILD)}</dd>
+        <dt>Server build</dt><dd>${
+          state.serverStatus.version
+            ? esc(state.serverStatus.version) +
+              (state.serverStatus.version === BUILD ? '' : ' — ⚠️ does not match the app')
+            : 'unknown'
+        }</dd>
       </dl>
       <p class="muted small">Checked when the app started. Pull down to reload the page if you have just changed something on the server.</p>
     </div>
@@ -1179,14 +1197,15 @@ async function boot() {
         checked: true,
         reachable: true,
         model: status.model ?? '',
+        version: status.version ?? '',
       };
     } else {
-      state.serverStatus = { checked: true, reachable: false, model: '' };
+      state.serverStatus = { checked: true, reachable: false, model: '', version: '' };
     }
   } catch {
     // Offline: the built-in library and everything already saved still work.
     state.identificationAvailable = false;
-    state.serverStatus = { checked: true, reachable: false, model: '' };
+    state.serverStatus = { checked: true, reachable: false, model: '', version: '' };
   }
 
   await refreshPlants();

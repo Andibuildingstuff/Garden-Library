@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 
 import { DEFAULT_MODEL, answerQuestion, identifyPlant } from './shared/identify.js';
+import { BUILD } from './public/version.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,6 +47,7 @@ app.get('/api/status', (_req, res) => {
     identificationAvailable: Boolean(API_KEY),
     accessCodeRequired: Boolean(ACCESS_CODE),
     model: MODEL,
+    version: BUILD,
   });
 });
 
