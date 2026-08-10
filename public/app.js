@@ -583,10 +583,16 @@ async function identifyDraft() {
   draft.error = '';
   renderAdd();
 
+  // A full profile takes 20-40s. Past two minutes something is wrong, and a
+  // request that hangs forever looks exactly like one that failed silently.
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), 120000);
+
   try {
     const response = await fetch('api/identify', {
       method: 'POST',
       headers: apiHeaders(),
+      signal: deadline.signal,
       body: JSON.stringify({
         images: draft.images.map((image) => ({ data: image.base64, mediaType: image.mediaType })),
         notes: draft.notes,
@@ -626,9 +632,21 @@ async function identifyDraft() {
     location.hash = `#/plant/${id}`;
   } catch (error) {
     draft.busy = false;
-    draft.error = error.message;
+    const cause =
+      error.name === 'AbortError'
+        ? 'It gave up waiting after two minutes. The server may still be working, or may have stalled.'
+        : error.message;
+    draft.error = `${cause} ${buildStamp()}`;
     renderAdd();
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+/** Both halves of the deployment, so an error screenshot is self-diagnosing. */
+function buildStamp() {
+  const server = state.serverStatus.version || 'unknown';
+  return `[app ${BUILD}, server ${server}]`;
 }
 
 async function savePlant({ profile, photos, source, notes = '' }) {
