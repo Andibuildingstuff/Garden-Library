@@ -610,7 +610,11 @@ async function identifyDraft() {
           'That usually means the request timed out or the server fell over.',
       );
     }
-    if (!response.ok) throw new Error(payload.message || `Something went wrong (HTTP ${response.status}).`);
+    // The slow routes have to send their status line before the answer
+    // exists, so a failure arrives as an `error` in the body, not as a 4xx.
+    if (!response.ok || payload.error) {
+      throw new Error(payload.message || `Something went wrong (HTTP ${response.status}).`);
+    }
 
     const profile = payload.profile;
     if (profile.isPlant === false) {
@@ -1064,7 +1068,7 @@ async function renderPlant(id) {
         }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message || 'Something went wrong.');
+      if (!response.ok || payload.error) throw new Error(payload.message || 'Something went wrong.');
       answer.innerHTML = paras(payload.answer);
     } catch (error) {
       answer.innerHTML = `<div class="callout danger"><strong>Couldn't answer</strong>${esc(error.message)}</div>`;

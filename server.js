@@ -51,32 +51,52 @@ app.get('/api/status', (_req, res) => {
   });
 });
 
+/**
+ * Same trickle as the Worker: a slow answer that sends nothing looks to a phone
+ * like a dead connection. Whitespace ahead of JSON is legal, so the client
+ * reads this as an ordinary reply. Kept identical to worker.js on purpose.
+ */
+async function keptAlive(res, run) {
+  res.status(200).type('application/json; charset=utf-8');
+  const beat = setInterval(() => res.write(' '), 5000);
+  let body;
+  try {
+    ({ body } = await run());
+  } catch (error) {
+    body = { error: 'server_error', message: `The server fell over: ${error?.message || error}` };
+  }
+  clearInterval(beat);
+  res.end(JSON.stringify(body));
+}
+
 app.post('/api/identify', async (req, res) => {
   const { images, notes, context } = req.body ?? {};
-  const { status, body } = await identifyPlant({
-    apiKey: API_KEY,
-    model: MODEL,
-    requiredCode: ACCESS_CODE,
-    providedCode: req.get('x-garden-access-code'),
-    images,
-    notes,
-    context,
-  });
-  res.status(status).json(body);
+  await keptAlive(res, () =>
+    identifyPlant({
+      apiKey: API_KEY,
+      model: MODEL,
+      requiredCode: ACCESS_CODE,
+      providedCode: req.get('x-garden-access-code'),
+      images,
+      notes,
+      context,
+    }),
+  );
 });
 
 app.post('/api/ask', async (req, res) => {
   const { question, plant, context } = req.body ?? {};
-  const { status, body } = await answerQuestion({
-    apiKey: API_KEY,
-    model: MODEL,
-    requiredCode: ACCESS_CODE,
-    providedCode: req.get('x-garden-access-code'),
-    question,
-    plant,
-    context,
-  });
-  res.status(status).json(body);
+  await keptAlive(res, () =>
+    answerQuestion({
+      apiKey: API_KEY,
+      model: MODEL,
+      requiredCode: ACCESS_CODE,
+      providedCode: req.get('x-garden-access-code'),
+      question,
+      plant,
+      context,
+    }),
+  );
 });
 
 /** The address to type into a phone on the same Wi-Fi. */
