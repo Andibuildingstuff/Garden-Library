@@ -5,3 +5,9 @@ node_modules/
 .DS_Store
 .wrangler/
 .dev.vars
+
+# Pool heater state is kept on its own branch, not in the working tree.
+pool-heater/state/
+__pycache__/
+*.pyc
+.pytest_cache/
