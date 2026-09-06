@@ -566,14 +566,14 @@ async function fileToImage(file) {
   // Downscale before upload: the model doesn't need 12 megapixels, and this keeps
   // the request (and the copy we store in IndexedDB) a sensible size.
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  const maxEdge = 1400;
+  const maxEdge = 1000;
   const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
   canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close?.();
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
   return { dataUrl, base64: dataUrl.slice(dataUrl.indexOf(',') + 1), mediaType: 'image/jpeg' };
 }
 
@@ -599,15 +599,27 @@ async function identifyDraft() {
         context: { hemisphere: state.settings.hemisphere, location: state.settings.location },
       }),
     });
-    // A gateway timeout or a crashed Worker answers with an HTML error page, not
-    // JSON. Say so plainly rather than surfacing a parser error about a '<'.
-    let payload;
+    // Two very different failures used to look identical here: a reply that
+    // arrived complete but wasn't JSON, and a reply that got cut off partway.
+    // Read the body as text first so they can be told apart and reported.
+    let raw;
     try {
-      payload = await response.json();
+      raw = await response.text();
     } catch {
       throw new Error(
-        `The server replied with something that wasn't JSON (HTTP ${response.status}). ` +
-          'That usually means the request timed out or the server fell over.',
+        `The connection dropped while the reply was arriving (HTTP ${response.status}). ` +
+          'The server had started answering, so it was cut off rather than refused.',
+      );
+    }
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      const seen = raw.trim();
+      throw new Error(
+        !seen
+          ? `The server held the line open for ${raw.length} bytes and then stopped without answering (HTTP ${response.status}).`
+          : `The server's reply was incomplete or not JSON (HTTP ${response.status}, ${raw.length} bytes): ${seen.slice(0, 80)}`,
       );
     }
     // The slow routes have to send their status line before the answer
@@ -636,10 +648,15 @@ async function identifyDraft() {
     location.hash = `#/plant/${id}`;
   } catch (error) {
     draft.busy = false;
+    // fetch() rejects with a bare TypeError when the connection itself fails —
+    // 'Failed to fetch' in Chrome, 'Load failed' in Safari. Neither tells the
+    // gardener anything, and on a phone it nearly always means the same thing.
     const cause =
       error.name === 'AbortError'
         ? 'It gave up waiting after two minutes. The server may still be working, or may have stalled.'
-        : error.message;
+        : error instanceof TypeError
+          ? 'The connection to the server was lost before the reply arrived. On a mobile connection this usually means the network dropped a request that was taking a while — try again, ideally with a stronger signal.'
+          : error.message;
     draft.error = `${cause} ${buildStamp()}`;
     renderAdd();
   } finally {
