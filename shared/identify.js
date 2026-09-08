@@ -72,18 +72,24 @@ export async function identifyPlant({
   const client = new Anthropic({ apiKey });
 
   try {
-    // max_tokens covers the thinking *and* the reply, and on this model thinking
-    // is on unless you say otherwise, so a 68-field profile needs real headroom.
-    // Above ~16k the SDK refuses a non-streaming call outright — it assumes the
-    // request could outlast the 10-minute HTTP limit — so stream and collect.
+    // Every second this takes is a second the phone has to hold a connection
+    // open on whatever signal it has, so the request is deliberately kept
+    // short. Low effort still writes a good profile — the spec in the prompt
+    // does most of the work — and it cuts the wait by more than half, which
+    // matters far more in a garden than a slightly more considered guess at a
+    // hard plant. Raise this to 'medium' if identifications start disappointing
+    // and you are usually on wi-fi.
+    //
+    // max_tokens covers the thinking as well as the reply; at this effort a
+    // full 68-field profile sits comfortably inside 16k.
     const ask = () =>
       client.messages
         .stream({
           model,
-          max_tokens: 32000,
+          max_tokens: 16000,
           system: SYSTEM_PROMPT,
           thinking: { type: 'adaptive' },
-          output_config: { effort: 'medium' },
+          output_config: { effort: 'low' },
           messages: [{ role: 'user', content: buildIdentifyContent({ images, notes, context }) }],
         })
         .finalMessage();
