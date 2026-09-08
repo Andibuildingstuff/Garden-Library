@@ -18,3 +18,10 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./public"
 binding = "ASSETS"
+
+# Record what the Worker does, so a failure that happened five minutes ago on a
+# phone in a garden can still be looked at afterwards. Without this, the
+# dashboard only offers a live stream you have to be watching at the moment it
+# breaks — which is no use for something intermittent.
+[observability]
+enabled = true
